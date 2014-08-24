@@ -5,6 +5,8 @@ RUN apt-get install -y git make curl software-properties-common sudo wget man op
 RUN apt-get install -y iptables ca-certificates lxc
 RUN git clone https://github.com/progrium/dokku /root/dokku
 RUN cd /root/dokku; make sshcommand pluginhook copyfiles
+RUN rm -rf /var/lib/dokku/plugins/nginx-vhosts
+RUN git clone https://github.com/mikexstudios/dokku-nginx-alt.git /var/lib/dokku/plugins/nginx-alt
 RUN dokku plugins-install
 
 RUN wget -O /root/buildstep.tar.gz $(grep PREBUILT_STACK_URL /root/dokku/Makefile | head -n1 | cut -d' ' -f3)
