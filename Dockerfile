@@ -1,28 +1,43 @@
-FROM ubuntu:13.10
+FROM ubuntu:trusty
+MAINTAINER Tarei <tarei@goonfleet.com>
 
-RUN apt-get update
-RUN apt-get install -y git make curl software-properties-common sudo wget man openssh-server
-RUN apt-get install -y iptables ca-certificates lxc
-RUN git clone https://github.com/progrium/dokku /root/dokku
-RUN cd /root/dokku; make sshcommand pluginhook copyfiles
-RUN rm -rf /var/lib/dokku/plugins/nginx-vhosts
-RUN git clone https://github.com/mikexstudios/dokku-nginx-alt.git /var/lib/dokku/plugins/nginx-alt
-RUN dokku plugins-install
+# Install required dependencies
+RUN apt-get update && \
+    apt-get install -y apt-transport-https locales git make \
+    curl software-properties-common \
+    nginx dnsutils aufs-tools \
+    dpkg-dev openssh-server man-db
+RUN apt-get install -y apache2-utils
+RUN chmod ugo+s /usr/bin/sudo
 
-RUN wget -O /root/buildstep.tar.gz $(grep PREBUILT_STACK_URL /root/dokku/Makefile | head -n1 | cut -d' ' -f3)
+# Configure environment
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
 
-VOLUME ["/home/dokku","/var/lib/docker"]
+# Install docker
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9 && \
+    echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y lxc-docker
 
-ENV HOME /root
-WORKDIR /root
-ADD ./setup.sh /root/setup.sh
-ADD ./wrapdocker /usr/local/bin/wrapdocker
-ADD https://get.docker.io/builds/Linux/x86_64/docker-latest /usr/local/bin/docker
-RUN chmod +x /usr/local/bin/docker /usr/local/bin/wrapdocker
-RUN touch /root/.firstrun
+# Install forego
+RUN curl -o /usr/bin/forego https://godist.herokuapp.com/projects/ddollar/forego/releases/current/linux-amd64/forego && chmod +x /usr/bin/forego
 
-EXPOSE 22
-EXPOSE 80
-EXPOSE 443
+# Configure ssh daemon
+RUN sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
-CMD ["bash", "/root/setup.sh"]
+# Configure volumes
+VOLUME /home/dokku
+VOLUME /var/lib/docker
+
+# Install dokku-alt
+WORKDIR /srv/dokku-alt
+RUN git clone https://github.com/dokku-alt/dokku-alt.git /srv/dokku-alt
+RUN sed -i 's/linux-image-extra-virtual, //g' deb/dokku-alt/DEBIAN/control
+RUN make install
+
+EXPOSE 22 80 443
+
+# Start all services
+CMD ["forego", "start"]
